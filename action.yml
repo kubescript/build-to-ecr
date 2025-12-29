@@ -1,0 +1,131 @@
+name: 'Build Docker Image to AWS ECR'
+description: 'Build and push Docker images to AWS ECR using OIDC authentication'
+author: 'KubeScript'
+branding:
+  icon: 'upload-cloud'
+  color: 'orange'
+
+inputs:
+  aws-creds-role-to-assume:
+    description: 'IAM role ARN to assume (OIDC)'
+    required: true
+  aws-region:
+    description: 'AWS Region'
+    required: true
+  ecr-url:
+    description: 'ECR registry URL (e.g., 123456789.dkr.ecr.us-east-1.amazonaws.com)'
+    required: true
+  ecr-repo:
+    description: 'ECR repository name'
+    required: true
+  docker-tag:
+    description: 'Docker image tag'
+    required: true
+  docker-build-args:
+    description: 'Docker build arguments (multiline supported)'
+    required: false
+    default: ''
+  docker-build-target:
+    description: 'Multi-stage build target'
+    required: false
+    default: ''
+  docker-build-context:
+    description: 'Build context directory'
+    required: false
+    default: '.'
+  docker-file-path:
+    description: 'Path to Dockerfile'
+    required: false
+    default: 'Dockerfile'
+  cache-from:
+    description: 'BuildKit cache source'
+    required: false
+    default: 'type=gha'
+  cache-to:
+    description: 'BuildKit cache destination'
+    required: false
+    default: 'type=gha,mode=max'
+
+outputs:
+  image-digest:
+    description: 'Docker image digest (SHA256)'
+    value: ${{ steps.build.outputs.digest }}
+  image-tag:
+    description: 'Full image tag pushed to ECR'
+    value: ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:${{ inputs.docker-tag }}
+  major-tag:
+    description: 'Major version tag (e.g., v1, v2)'
+    value: ${{ steps.extract-major.outputs.major }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Extract Major Version
+      id: extract-major
+      shell: bash
+      run: |
+        TAG="${{ inputs.docker-tag }}"
+
+        # Extract major version from semver tags (v1.2.3 -> v1, 1.2.3 -> 1)
+        if [[ "$TAG" =~ ^v?([0-9]+)\. ]]; then
+          MAJOR="${BASH_REMATCH[1]}"
+          # Preserve 'v' prefix if present
+          if [[ "$TAG" =~ ^v ]]; then
+            echo "major=v${MAJOR}" >> $GITHUB_OUTPUT
+            echo "has_major=true" >> $GITHUB_OUTPUT
+          else
+            echo "major=${MAJOR}" >> $GITHUB_OUTPUT
+            echo "has_major=true" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "has_major=false" >> $GITHUB_OUTPUT
+          echo "major=" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: network=host
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v5
+      with:
+        role-to-assume: ${{ inputs.aws-creds-role-to-assume }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Login to Amazon ECR
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.ecr-url }}
+
+    - name: Build and Push Docker Image (with major tag)
+      id: build
+      if: steps.extract-major.outputs.has_major == 'true'
+      uses: docker/build-push-action@v6
+      with:
+        push: true
+        cache-from: ${{ inputs.cache-from }}
+        cache-to: ${{ inputs.cache-to }}
+        context: ${{ inputs.docker-build-context }}
+        target: ${{ inputs.docker-build-target }}
+        file: ${{ inputs.docker-file-path }}
+        tags: |
+          ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:latest
+          ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:${{ inputs.docker-tag }}
+          ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:${{ steps.extract-major.outputs.major }}
+        build-args: ${{ inputs.docker-build-args }}
+
+    - name: Build and Push Docker Image (without major tag)
+      if: steps.extract-major.outputs.has_major == 'false'
+      uses: docker/build-push-action@v6
+      with:
+        push: true
+        cache-from: ${{ inputs.cache-from }}
+        cache-to: ${{ inputs.cache-to }}
+        context: ${{ inputs.docker-build-context }}
+        target: ${{ inputs.docker-build-target }}
+        file: ${{ inputs.docker-file-path }}
+        tags: |
+          ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:latest
+          ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:${{ inputs.docker-tag }}
+        build-args: ${{ inputs.docker-build-args }}
