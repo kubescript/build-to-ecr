@@ -412,6 +412,17 @@ docker-build-args: |
   ARG2=value2
 ```
 
+## Acknowledgments
+
+This action uses the following third-party GitHub Actions:
+
+- **[docker/setup-buildx-action](https://github.com/docker/setup-buildx-action)** - Set up Docker Buildx
+- **[aws-actions/configure-aws-credentials](https://github.com/aws-actions/configure-aws-credentials)** - Configure AWS credentials using OIDC
+- **[docker/login-action](https://github.com/docker/login-action)** - Login to container registries
+- **[docker/build-push-action](https://github.com/docker/build-push-action)** - Build and push Docker images
+
+Thank you to all the maintainers and contributors of these projects!
+
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
