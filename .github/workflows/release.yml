@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (format: vMAJOR.MINOR.PATCH, e.g., v1.2.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate tag format
+        run: |
+          if [[ ! "${{ inputs.tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid tag format '${{ inputs.tag }}'. Expected vMAJOR.MINOR.PATCH (e.g., v1.2.1)"
+            exit 1
+          fi
+
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fail if tag already exists
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${{ inputs.tag }}" >/dev/null 2>&1; then
+            echo "::error::Tag '${{ inputs.tag }}' already exists on remote"
+            exit 1
+          fi
+
+      - name: Extract major version
+        id: major
+        run: |
+          MAJOR=$(echo "${{ inputs.tag }}" | sed -E 's/^(v[0-9]+)\..*/\1/')
+          echo "version=$MAJOR" >> "$GITHUB_OUTPUT"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push tags
+        run: |
+          SHA=$(git rev-parse HEAD)
+          git tag -a "${{ inputs.tag }}" -m "Release ${{ inputs.tag }}" "$SHA"
+          git tag -f -a "${{ steps.major.outputs.version }}" -m "Update ${{ steps.major.outputs.version }} -> ${{ inputs.tag }}" "$SHA"
+          git push origin "${{ inputs.tag }}"
+          git push origin -f "${{ steps.major.outputs.version }}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ inputs.tag }}" \
+            --title "${{ inputs.tag }}" \
+            --generate-notes \
+            --latest
