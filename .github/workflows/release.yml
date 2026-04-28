@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (format: vMAJOR.MINOR.PATCH, e.g., v1.2.1)'
+        description: "Tag to release (format: vMAJOR.MINOR.PATCH, e.g., v1.2.1)"
         required: true
         type: string
 
@@ -23,7 +23,7 @@ jobs:
           fi
 
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
