@@ -122,6 +122,7 @@ permissions:
 | `docker-file-path` | Path to Dockerfile | No | `Dockerfile` |
 | `cache-from` | BuildKit cache source configuration | No | `type=gha` |
 | `cache-to` | BuildKit cache destination configuration | No | `type=gha,mode=max` |
+| `platforms` | Target platforms for the build (e.g., `linux/amd64,linux/arm64`). When more than one platform is set, a multi-platform manifest list is pushed under the same tag and QEMU is enabled automatically | No | `linux/amd64` |
 
 ## Outputs
 
