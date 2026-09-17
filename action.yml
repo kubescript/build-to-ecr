@@ -45,6 +45,10 @@ inputs:
     description: 'BuildKit cache destination'
     required: false
     default: 'type=gha,mode=max'
+  platforms:
+    description: 'Target platforms for the build (e.g., linux/amd64,linux/arm64)'
+    required: false
+    default: 'linux/amd64'
 
 outputs:
   image-digest:
@@ -82,6 +86,10 @@ runs:
           echo "major=" >> $GITHUB_OUTPUT
         fi
 
+    - name: Set up QEMU
+      if: ${{ inputs.platforms != '' && inputs.platforms != 'linux/amd64' }}
+      uses: docker/setup-qemu-action@v4
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
       with:
@@ -109,6 +117,7 @@ runs:
         context: ${{ inputs.docker-build-context }}
         target: ${{ inputs.docker-build-target }}
         file: ${{ inputs.docker-file-path }}
+        platforms: ${{ inputs.platforms }}
         tags: |
           ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:latest
           ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:${{ inputs.docker-tag }}
@@ -125,6 +134,7 @@ runs:
         context: ${{ inputs.docker-build-context }}
         target: ${{ inputs.docker-build-target }}
         file: ${{ inputs.docker-file-path }}
+        platforms: ${{ inputs.platforms }}
         tags: |
           ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:latest
           ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:${{ inputs.docker-tag }}
