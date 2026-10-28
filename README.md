@@ -34,6 +34,21 @@ This action automatically creates multiple tags for your Docker image:
 
 **Note**: Major version tags are only created for semver-compatible tags (e.g., `v1.2.3` or `1.2.3`). Non-semver tags will only get `latest` and the specified tag.
 
+### Immutable repositories
+
+With `image_tag_mutability = IMMUTABLE`, pushing `latest` or the major tag a second time fails. Set `push-floating-tags: 'false'` to push only `docker-tag`, and use a unique tag per build (commit SHA):
+
+```yaml
+- uses: kubescript/build-to-ecr@v1
+  with:
+    aws-creds-role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+    aws-region: sa-east-1
+    ecr-url: 123456789012.dkr.ecr.sa-east-1.amazonaws.com
+    ecr-repo: my-app
+    docker-tag: ${{ github.sha }}
+    push-floating-tags: 'false'
+```
+
 ## Prerequisites
 
 Before using this action, you need to configure:
@@ -122,6 +137,8 @@ permissions:
 | `docker-file-path` | Path to Dockerfile | No | `Dockerfile` |
 | `cache-from` | BuildKit cache source configuration | No | `type=gha` |
 | `cache-to` | BuildKit cache destination configuration | No | `type=gha,mode=max` |
+| `docker-build-secrets` | BuildKit secrets (multiline `id=value`), read in the Dockerfile with `RUN --mount=type=secret,id=<id>`. Not stored in image layers or history, unlike build args | No | `''` |
+| `push-floating-tags` | Also push the floating tags (`latest` and the major version). Set to `false` for repositories with immutable tags | No | `true` |
 | `platforms` | Target platforms for the build (e.g., `linux/amd64,linux/arm64`). When more than one platform is set, a multi-platform manifest list is pushed under the same tag and QEMU is enabled automatically | No | `linux/amd64` |
 
 ## Outputs
