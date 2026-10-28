@@ -25,6 +25,10 @@ inputs:
     description: 'Docker build arguments (multiline supported)'
     required: false
     default: ''
+  docker-build-secrets:
+    description: 'BuildKit secrets (multiline id=value), mounted with RUN --mount=type=secret; never stored in the image'
+    required: false
+    default: ''
   docker-build-target:
     description: 'Multi-stage build target'
     required: false
@@ -49,6 +53,10 @@ inputs:
     description: 'Target platforms for the build (e.g., linux/amd64,linux/arm64)'
     required: false
     default: 'linux/amd64'
+  push-floating-tags:
+    description: 'Also push the floating tags (`latest` and the major version). Set to false for repositories with immutable tags'
+    required: false
+    default: 'true'
 
 outputs:
   image-digest:
@@ -106,26 +114,25 @@ runs:
       with:
         registry: ${{ inputs.ecr-url }}
 
-    - name: Build and Push Docker Image (with major tag)
-      id: build
-      if: steps.extract-major.outputs.has_major == 'true'
-      uses: docker/build-push-action@v7
-      with:
-        push: true
-        cache-from: ${{ inputs.cache-from }}
-        cache-to: ${{ inputs.cache-to }}
-        context: ${{ inputs.docker-build-context }}
-        target: ${{ inputs.docker-build-target }}
-        file: ${{ inputs.docker-file-path }}
-        platforms: ${{ inputs.platforms }}
-        tags: |
-          ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:latest
-          ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:${{ inputs.docker-tag }}
-          ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:${{ steps.extract-major.outputs.major }}
-        build-args: ${{ inputs.docker-build-args }}
+    - name: Compose Tags
+      id: tags
+      shell: bash
+      run: |
+        IMAGE="${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}"
+        {
+          echo "list<<EOF"
+          echo "${IMAGE}:${{ inputs.docker-tag }}"
+          if [ "${{ inputs.push-floating-tags }}" == "true" ]; then
+            echo "${IMAGE}:latest"
+          fi
+          if [ "${{ inputs.push-floating-tags }}" == "true" ] && [ "${{ steps.extract-major.outputs.has_major }}" == "true" ]; then
+            echo "${IMAGE}:${{ steps.extract-major.outputs.major }}"
+          fi
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
 
-    - name: Build and Push Docker Image (without major tag)
-      if: steps.extract-major.outputs.has_major == 'false'
+    - name: Build and Push Docker Image
+      id: build
       uses: docker/build-push-action@v7
       with:
         push: true
@@ -135,7 +142,6 @@ runs:
         target: ${{ inputs.docker-build-target }}
         file: ${{ inputs.docker-file-path }}
         platforms: ${{ inputs.platforms }}
-        tags: |
-          ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:latest
-          ${{ inputs.ecr-url }}/${{ inputs.ecr-repo }}:${{ inputs.docker-tag }}
+        tags: ${{ steps.tags.outputs.list }}
         build-args: ${{ inputs.docker-build-args }}
+        secrets: ${{ inputs.docker-build-secrets }}
